@@ -1,6 +1,10 @@
 mod utils;
 
+extern crate rand;
+
 use wasm_bindgen::prelude::*;
+use std::fmt;
+use rand::Rng;
 
 #[wasm_bindgen]
 #[repr(u8)]
@@ -10,46 +14,122 @@ pub enum Cell {
     Alive = 1
 }
 
+#[wasm_bindgen]
 pub struct Universe {
+    height: u32,
     width: u32,
-    length: u32,
     cells: Vec<Cell>,
 }
 
+#[wasm_bindgen]
 impl Universe {
-    pub fn get_index(&self, row: u32, column: u32) -> usize {
+    pub fn new(height: u32, width: u32) -> Self {
+        utils::set_panic_hook();
+        let cells = (0..height * width)
+            .map(|i| {
+                if i % 9 == 0 {
+                    Cell::Alive
+                } else {
+                    Cell::Dead
+                }
+            }).collect();
+
+        Universe { height, width, cells }
+    }
+
+    pub fn tick(&mut self) {
+        let mut next_gen = self.cells.clone();
+        for row in 0..self.height {
+            for column in 0..self.width {
+                let idx = self.get_index(row, column);
+                next_gen[idx] = self.get_next_stage(idx);
+//                next_gen[idx] = self.get_next_stage2(row, column);
+            }
+        }
+        self.cells = next_gen;
+    }
+
+    pub fn render(&self) -> String {
+        self.to_string()
+    }
+
+    pub fn get_cells(&self) -> *const Cell {
+        self.cells.as_ptr()
+    }
+}
+
+impl Universe {
+    fn get_next_stage(&self, index: usize) -> Cell {
+        let mut rng = rand::thread_rng();
+//        let fate = rng.gen_range(0, 130) % 130 == 0;
+        match (self.cells[index], self.get_alive_neighbours_number(index as u32)) {
+//            (Cell::Alive, x) if x < 2 && fate => Cell::Alive,
+            (Cell::Alive, x) if x < 2 => Cell::Dead,
+            (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
+//            (Cell::Alive, x) if x > 3 && fate => Cell::Alive,
+            (Cell::Alive, x) if x > 3 => Cell::Dead,
+            (Cell::Dead, 3) => Cell::Alive,
+            (otherwise, _) => otherwise
+        }
+    }
+
+    fn get_next_stage2(&self, row: u32, column: u32) -> Cell {
+        match (self.cells[self.get_index(row, column)], self.live_neighbor_count(row, column)) {
+            (Cell::Alive, x) if x < 2 => Cell::Dead,
+            (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
+            (Cell::Alive, x) if x > 3 => Cell::Dead,
+            (Cell::Dead, 3) => Cell::Alive,
+            (otherwise, _) => otherwise
+        }
+    }
+
+    fn get_index(&self, row: u32, column: u32) -> usize {
         (self.width * row + column) as usize
     }
 
-    pub fn get_next_stage(&self, index: u32, current_stage: u8) -> Cell {
-        match self.get_alive_neighbours(index as i32) {
-            v if current_stage == 0 && v == 3 => Cell::Alive,
-            0 | 1 => Cell::Dead,
-            2 | 3 => Cell::Alive,
-            v if v > 3 => Cell::Dead,
-            _ => panic!("You shouldn't use panic for such cases")
-        }
-    }
-
-    fn get_alive_neighbours(&self, index: i32) -> u8 {
-        let mut neighbours_num: u8 = 0;
-        let mut neighbour_index: i32;
-        let universe_length = (self.width * self.length) as i32;
-        for row_delta in -1..1_i32 {
-            for column_delta in -1..1_i32 {
+    fn get_alive_neighbours_number(&self, index: u32) -> u8 {
+        let (mut neighbours_num, mut column_index, mut row_index) = (0, 0, 0);
+        for row_delta in [self.height - 1, 0, 1].iter().cloned() {
+            for column_delta in [self.width - 1, 0, 1].iter().cloned() {
                 if row_delta == 0 && column_delta == 0 {
                     continue;
                 }
-                neighbour_index = index + (self.width as i32 * row_delta) + column_delta;
-                if neighbour_index - universe_length >= 0 {
-                    neighbour_index = neighbour_index - universe_length;
-                }
-                if let Some(Cell::Alive) = self.cells.get(neighbour_index as usize) {
-                    neighbours_num += 1;
-                }
+                column_index = (index + column_delta) % self.width;
+                row_index = (index + row_delta) % self.height;
+                neighbours_num += self.cells[self.get_index(column_index, row_index)] as u8;
             }
         }
         neighbours_num
+    }
+
+    fn live_neighbor_count(&self, row: u32, column: u32) -> u8 {
+        let mut count = 0;
+        for delta_row in [self.height - 1, 0, 1].iter().cloned() {
+            for delta_col in [self.width - 1, 0, 1].iter().cloned() {
+                if delta_row == 0 && delta_col == 0 {
+                    continue;
+                }
+                let neighbor_row = (row + delta_row) % self.height;
+                let neighbor_col = (column + delta_col) % self.width;
+                let idx = self.get_index(neighbor_row, neighbor_col);
+                count += self.cells[idx] as u8;
+            }
+        }
+        count
+    }
+}
+
+impl fmt::Display for Universe {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut symbol: &str;
+        for line in self.cells.as_slice().chunks(self.width as usize) {
+            for &cell in line {
+                symbol = if cell == Cell::Dead { "◻" } else { "◼" };
+                write!(f, "{}", symbol)?;
+            }
+            write!(f, "\n")?;
+        }
+        Ok(())
     }
 }
 
@@ -58,8 +138,3 @@ impl Universe {
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-#[wasm_bindgen]
-extern {
-
-}
