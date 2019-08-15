@@ -11,7 +11,7 @@ use rand::Rng;
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Cell {
     Dead = 0,
-    Alive = 1
+    Alive = 1,
 }
 
 #[wasm_bindgen]
@@ -24,16 +24,16 @@ pub struct Universe {
 #[wasm_bindgen]
 impl Universe {
     pub fn new(height: u32, width: u32) -> Self {
+        let mut rng = rand::thread_rng();
         utils::set_panic_hook();
         let cells = (0..height * width)
             .map(|i| {
-                if i % 9 == 0 {
+                if i % rng.gen_range(1, 13) == 0 {
                     Cell::Alive
                 } else {
                     Cell::Dead
                 }
             }).collect();
-
         Universe { height, width, cells }
     }
 
@@ -42,8 +42,7 @@ impl Universe {
         for row in 0..self.height {
             for column in 0..self.width {
                 let idx = self.get_index(row, column);
-                next_gen[idx] = self.get_next_stage(idx);
-//                next_gen[idx] = self.get_next_stage2(row, column);
+                next_gen[idx] = self.get_next_stage(row, column);
             }
         }
         self.cells = next_gen;
@@ -59,21 +58,7 @@ impl Universe {
 }
 
 impl Universe {
-    fn get_next_stage(&self, index: usize) -> Cell {
-        let mut rng = rand::thread_rng();
-//        let fate = rng.gen_range(0, 130) % 130 == 0;
-        match (self.cells[index], self.get_alive_neighbours_number(index as u32)) {
-//            (Cell::Alive, x) if x < 2 && fate => Cell::Alive,
-            (Cell::Alive, x) if x < 2 => Cell::Dead,
-            (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
-//            (Cell::Alive, x) if x > 3 && fate => Cell::Alive,
-            (Cell::Alive, x) if x > 3 => Cell::Dead,
-            (Cell::Dead, 3) => Cell::Alive,
-            (otherwise, _) => otherwise
-        }
-    }
-
-    fn get_next_stage2(&self, row: u32, column: u32) -> Cell {
+    fn get_next_stage(&self, row: u32, column: u32) -> Cell {
         match (self.cells[self.get_index(row, column)], self.live_neighbor_count(row, column)) {
             (Cell::Alive, x) if x < 2 => Cell::Dead,
             (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
