@@ -2,9 +2,9 @@ mod utils;
 
 extern crate rand;
 
-use wasm_bindgen::prelude::*;
-use std::fmt;
 use rand::Rng;
+use std::fmt;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[repr(u8)]
@@ -33,8 +33,13 @@ impl Universe {
                 } else {
                     Cell::Dead
                 }
-            }).collect();
-        Universe { height, width, cells }
+            })
+            .collect();
+        Universe {
+            height,
+            width,
+            cells,
+        }
     }
 
     pub fn tick(&mut self) {
@@ -59,12 +64,15 @@ impl Universe {
 
 impl Universe {
     fn get_next_stage(&self, row: u32, column: u32) -> Cell {
-        match (self.cells[self.get_index(row, column)], self.live_neighbor_count(row, column)) {
+        match (
+            self.cells[self.get_index(row, column)],
+            self.live_neighbor_count(row, column),
+        ) {
             (Cell::Alive, x) if x < 2 => Cell::Dead,
             (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
             (Cell::Alive, x) if x > 3 => Cell::Dead,
             (Cell::Dead, 3) => Cell::Alive,
-            (otherwise, _) => otherwise
+            (otherwise, _) => otherwise,
         }
     }
 
